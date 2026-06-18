@@ -40,6 +40,8 @@ input {
   padding: 12px 14px;
   color: var(--text);
   width: 100%;
+  /* Ensures inputs are easy to tap on iOS */
+  min-height: 48px; 
 }
 
 input:focus-visible {
@@ -379,9 +381,13 @@ input:focus-visible {
 
 .plan-stat-value {
   font-weight: 700;
-  font-size: 1.05rem;
+  /* Dynamically scales text down on smaller screens */
+  font-size: clamp(0.85rem, 3.5vw, 1.05rem); 
   margin: 0 0 2px;
   color: var(--accent);
+  /* Prevents long numbers from breaking the 3-column layout */
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .plan-stat-label {
@@ -397,9 +403,15 @@ input:focus-visible {
 }
 
 .contribution-form {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* Places Amount and Date side-by-side */
   gap: 10px;
+}
+
+/* Forces the Note input and Submit button to take up the full width */
+#contrib-note, 
+.contribution-form button {
+  grid-column: 1 / -1;
 }
 
 /* ---------------- Calendar ---------------- */
