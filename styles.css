@@ -151,7 +151,8 @@ input:focus-visible {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 18px 10px;
+  /* Adds fallback padding + dynamic safe area for the notch */
+  padding: calc(16px + env(safe-area-inset-top, 0px)) 18px 10px;
   max-width: var(--max-w);
   margin: 0 auto;
 }
@@ -179,7 +180,7 @@ input:focus-visible {
 .view-container {
   max-width: var(--max-w);
   margin: 0 auto;
-  padding: 4px 18px 100px;
+  padding: 4px 18px calc(100px + env(safe-area-inset-bottom, 0px));
 }
 
 .view { display: block; }
@@ -535,7 +536,8 @@ input:focus-visible {
   width: 100%;
   max-width: var(--max-w);
   border-radius: 20px 20px 0 0;
-  padding: 10px 20px 28px;
+  /* Added dynamic padding extension at the bottom */
+  padding: 10px 20px calc(28px + env(safe-area-inset-bottom, 0px));
   max-height: 88vh;
   overflow-y: auto;
 }
