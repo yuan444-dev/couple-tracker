@@ -84,7 +84,7 @@ function showToast(msg, ms = 2200) {
 
 function formatMoney(n) {
   const num = Number(n) || 0;
-  return "" + num.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  return "₱" + num.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
 function todayISO() {
