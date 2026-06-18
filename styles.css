@@ -18,7 +18,7 @@
 * { box-sizing: border-box; }
 
 html, body {
-  font-family:-apple-system, BlinkMacSystemFont, "Pixelify Sans", sans-serif;
+  font-family: "Pixelify Sans", sans-serif;
   margin: 0;
   padding: 0;
   background: var(--bg);
