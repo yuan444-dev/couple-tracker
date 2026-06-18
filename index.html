@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Savings Tracker</title>
+<meta name="theme-color" content="#1c1c1e" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- ===================== AUTH SCREEN ===================== -->
+<div id="auth-screen" class="screen">
+  <div class="auth-wrap">
+    <h1 class="auth-title">Savings</h1>
+    <p class="auth-subtitle">Track goals. Plan dates. Save steadily.</p>
+
+    <form id="auth-form" class="auth-form">
+      <label class="field">
+        <span>Email</span>
+        <input type="email" id="auth-email" autocomplete="email" required />
+      </label>
+      <label class="field">
+        <span>Password</span>
+        <input type="password" id="auth-password" autocomplete="current-password"/>
+      </label>
+      <p id="auth-error" class="error-text" hidden></p>
+      <button type="submit" id="auth-submit" class="btn btn-primary btn-block">Log in</button>
+    </form>
+
+    <button id="auth-toggle" class="btn-link">Don't have an account? Sign up</button>
+  </div>
+</div>
+
+<!-- ===================== APP SHELL ===================== -->
+<div id="app-screen" class="screen" hidden>
+
+  <header class="topbar">
+    <h1 class="topbar-title">Savings</h1>
+    <button id="logout-btn" class="icon-btn" aria-label="Log out" title="Log out">⏻</button>
+  </header>
+
+  <main id="view-container" class="view-container">
+
+    <!-- ---------- GOALS LIST VIEW ---------- -->
+    <section id="view-goals" class="view">
+      <div class="summary-card" id="summary-card">
+        <div class="summary-row">
+          <div>
+            <p class="summary-label">Total saved</p>
+            <p class="summary-value" id="summary-saved">$0</p>
+          </div>
+          <div>
+            <p class="summary-label">Across goals</p>
+            <p class="summary-value" id="summary-goal-count">0</p>
+          </div>
+        </div>
+      </div>
+
+      <div id="goals-list" class="goals-list"></div>
+
+      <div id="goals-empty" class="empty-state" hidden>
+        <p class="empty-title">No goals yet</p>
+        <p class="empty-text">Add your first savings goal to start planning.</p>
+      </div>
+    </section>
+
+    <!-- ---------- GOAL DETAIL VIEW ---------- -->
+    <section id="view-goal-detail" class="view" hidden>
+      <button class="back-btn" id="back-to-goals">← Goals</button>
+
+      <div class="detail-header">
+        <span class="detail-emoji" id="detail-emoji">🎯</span>
+        <div class="detail-headtext">
+          <h2 id="detail-name">Goal name</h2>
+          <p id="detail-sub" class="detail-sub">$0 of $0</p>
+        </div>
+        <button class="icon-btn" id="detail-edit-btn" aria-label="Edit goal">✎</button>
+      </div>
+
+      <div class="progress-track">
+        <div class="progress-fill" id="detail-progress-fill"></div>
+      </div>
+      <p class="progress-pct" id="detail-progress-pct">0%</p>
+
+      <!-- Date planning -->
+      <div class="card">
+        <h3 class="card-title">Date plan</h3>
+        <div class="plan-row">
+          <label class="field">
+            <span>Target date</span>
+            <input type="date" id="plan-date-input" />
+          </label>
+        </div>
+        <div class="plan-grid" id="plan-grid">
+          <div class="plan-stat">
+            <p class="plan-stat-value" id="plan-days-left">—</p>
+            <p class="plan-stat-label">days left</p>
+          </div>
+          <div class="plan-stat">
+            <p class="plan-stat-value" id="plan-per-week">—</p>
+            <p class="plan-stat-label">per week</p>
+          </div>
+          <div class="plan-stat">
+            <p class="plan-stat-value" id="plan-per-month">—</p>
+            <p class="plan-stat-label">per month</p>
+          </div>
+        </div>
+        <p id="plan-status" class="plan-status"></p>
+      </div>
+
+      <!-- Add contribution -->
+      <div class="card">
+        <h3 class="card-title">Add contribution</h3>
+        <form id="contribution-form" class="contribution-form">
+          <input type="number" id="contrib-amount" placeholder="Amount" inputmode="decimal" step="0.01" min="0.01" required />
+          <input type="date" id="contrib-date" required />
+          <input type="text" id="contrib-note" placeholder="Note (optional)" maxlength="80" />
+          <button type="submit" class="btn btn-primary btn-block">Add</button>
+        </form>
+      </div>
+
+      <!-- Calendar -->
+      <div class="card">
+        <div class="cal-header">
+          <button class="icon-btn" id="cal-prev" aria-label="Previous month">‹</button>
+          <h3 class="card-title" id="cal-month-label">Month</h3>
+          <button class="icon-btn" id="cal-next" aria-label="Next month">›</button>
+        </div>
+        <div class="cal-weekdays">
+          <span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span>
+        </div>
+        <div class="cal-grid" id="cal-grid"></div>
+      </div>
+
+      <!-- History -->
+      <div class="card">
+        <h3 class="card-title">History</h3>
+        <div id="history-list" class="history-list"></div>
+        <p id="history-empty" class="empty-text" hidden>No contributions yet.</p>
+      </div>
+
+      <button class="btn btn-danger btn-block" id="delete-goal-btn">Delete goal</button>
+    </section>
+
+  </main>
+
+  <button id="fab-add-goal" class="fab" aria-label="Add goal">+</button>
+
+  <!-- ---------- GOAL FORM MODAL (create / edit) ---------- -->
+  <div id="goal-modal" class="modal-overlay" hidden>
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <h2 id="goal-modal-title" class="modal-title">New goal</h2>
+      <form id="goal-form" class="goal-form">
+        <label class="field">
+          <span>Name</span>
+          <input type="text" id="goal-name" placeholder="e.g. Japan trip" maxlength="60" required />
+        </label>
+        <label class="field">
+          <span>Emoji</span>
+          <input type="text" id="goal-emoji" placeholder="🎯" maxlength="4" />
+        </label>
+        <label class="field">
+          <span>Target amount</span>
+          <input type="number" id="goal-target" placeholder="0.00" inputmode="decimal" step="0.01" min="0.01" required />
+        </label>
+        <label class="field">
+          <span>Target date (optional)</span>
+          <input type="date" id="goal-date" />
+        </label>
+        <p id="goal-form-error" class="error-text" hidden></p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary btn-block" id="goal-cancel-btn">Cancel</button>
+          <button type="submit" class="btn btn-primary btn-block" id="goal-save-btn">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

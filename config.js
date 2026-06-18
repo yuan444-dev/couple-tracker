@@ -1,0 +1,3 @@
+const SUPABASE_URL = "https://cutmemvnnhlmcdgwawgy.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1dG1lbXZubmhsbWNkZ3dhd2d5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MzY4NjksImV4cCI6MjA5NzMxMjg2OX0.B4_jilBxs3XDN8NanGgRGxk8OfmFRlJqOZ_GRo7siEQ";
+ 
