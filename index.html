@@ -39,7 +39,7 @@
 <div id="app-screen" class="screen" hidden>
 
   <header class="topbar">
-    <h1 class="topbar-title">Savings</h1>
+    <h1 class="topbar-title" id="topbar-title">Savings</h1>
     <button id="logout-btn" class="icon-btn" aria-label="Log out" title="Log out">⏻</button>
   </header>
 
@@ -146,9 +146,75 @@
       <button class="btn btn-danger btn-block" id="delete-goal-btn">Delete goal</button>
     </section>
 
+    <!-- ---------- TRANSACTIONS VIEW ---------- -->
+    <section id="view-transactions" class="view" hidden>
+
+      <div class="month-switch">
+        <button class="icon-btn" id="tx-month-prev" aria-label="Previous month">‹</button>
+        <h3 class="month-switch-label" id="tx-month-label">Month</h3>
+        <button class="icon-btn" id="tx-month-next" aria-label="Next month">›</button>
+      </div>
+
+      <div class="tx-summary-grid">
+        <div class="tx-summary-card tx-in">
+          <p class="summary-label">Income</p>
+          <p class="summary-value" id="tx-total-income">₱0</p>
+        </div>
+        <div class="tx-summary-card tx-out">
+          <p class="summary-label">Expenses</p>
+          <p class="summary-value" id="tx-total-expense">₱0</p>
+        </div>
+        <div class="tx-summary-card tx-net">
+          <p class="summary-label">Net</p>
+          <p class="summary-value" id="tx-total-net">₱0</p>
+        </div>
+      </div>
+
+      <!-- Category breakdown -->
+      <div class="card" id="tx-breakdown-card">
+        <h3 class="card-title">Where it went</h3>
+        <div id="tx-breakdown-list" class="breakdown-list"></div>
+        <p id="tx-breakdown-empty" class="empty-text" hidden>No expenses this month yet.</p>
+      </div>
+
+      <!-- 6-month trend -->
+      <div class="card">
+        <h3 class="card-title">Last 6 months</h3>
+        <div id="tx-trend-chart" class="trend-chart"></div>
+      </div>
+
+      <!-- Transaction list -->
+      <div class="card">
+        <div class="tx-list-header">
+          <h3 class="card-title">Transactions</h3>
+          <div class="tx-filter-pills" id="tx-filter-pills">
+            <button class="pill active" data-filter="all" type="button">All</button>
+            <button class="pill" data-filter="income" type="button">Income</button>
+            <button class="pill" data-filter="expense" type="button">Expenses</button>
+          </div>
+        </div>
+        <div id="tx-list" class="tx-list"></div>
+        <p id="tx-list-empty" class="empty-text" hidden>No transactions this month.</p>
+      </div>
+
+    </section>
+
   </main>
 
+  <!-- ---------- BOTTOM NAV ---------- -->
+  <nav class="bottom-nav" id="bottom-nav">
+    <button class="nav-btn active" id="nav-goals-btn" data-tab="goals" type="button">
+      <span class="nav-icon">🎯</span>
+      <span class="nav-label">Goals</span>
+    </button>
+    <button class="nav-btn" id="nav-transactions-btn" data-tab="transactions" type="button">
+      <span class="nav-icon">💸</span>
+      <span class="nav-label">Transactions</span>
+    </button>
+  </nav>
+
   <button id="fab-add-goal" class="fab" aria-label="Add goal">+</button>
+  <button id="fab-add-tx" class="fab" aria-label="Add transaction" hidden>+</button>
 
   <!-- ---------- GOAL FORM MODAL (create / edit) ---------- -->
   <div id="goal-modal" class="modal-overlay" hidden>
@@ -176,6 +242,42 @@
         <div class="modal-actions">
           <button type="button" class="btn btn-secondary btn-block" id="goal-cancel-btn">Cancel</button>
           <button type="submit" class="btn btn-primary btn-block" id="goal-save-btn">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ---------- TRANSACTION FORM MODAL (create / edit) ---------- -->
+  <div id="tx-modal" class="modal-overlay" hidden>
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <h2 id="tx-modal-title" class="modal-title">New transaction</h2>
+      <form id="tx-form" class="goal-form">
+        <div class="type-toggle" id="tx-type-toggle">
+          <button type="button" class="type-toggle-btn active" data-type="expense" id="tx-type-expense">Expense</button>
+          <button type="button" class="type-toggle-btn" data-type="income" id="tx-type-income">Income</button>
+        </div>
+        <label class="field">
+          <span>Amount</span>
+          <input type="number" id="tx-amount" placeholder="0.00" inputmode="decimal" step="0.01" min="0.01" required />
+        </label>
+        <label class="field">
+          <span>Category</span>
+          <div class="category-grid" id="tx-category-grid"></div>
+          <input type="hidden" id="tx-category" value="other" />
+        </label>
+        <label class="field">
+          <span>Date</span>
+          <input type="date" id="tx-date" required />
+        </label>
+        <label class="field">
+          <span>Note (optional)</span>
+          <input type="text" id="tx-note" placeholder="What was this for?" maxlength="80" />
+        </label>
+        <p id="tx-form-error" class="error-text" hidden></p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary btn-block" id="tx-cancel-btn">Cancel</button>
+          <button type="submit" class="btn btn-primary btn-block" id="tx-save-btn">Save</button>
         </div>
       </form>
     </div>

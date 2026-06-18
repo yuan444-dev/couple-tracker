@@ -13,6 +13,41 @@ let calViewYear = null;
 let calViewMonth = null;      // 0-indexed
 let isSignupMode = false;
 
+let activeTab = "goals";      // "goals" | "transactions"
+let transactions = [];        // all loaded transactions for the current tx month
+let txViewYear = null;
+let txViewMonth = null;       // 0-indexed
+let txTypeFilter = "all";     // "all" | "income" | "expense"
+let txFormType = "expense";   // currently selected type in the add/edit modal
+let editingTxId = null;
+let trendCache = [];          // last 6 months of {year, month, income, expense}
+
+const CATEGORIES = {
+  expense: [
+    { id: "food",      label: "Food",      emoji: "🍔" },
+    { id: "transport",  label: "Transport", emoji: "🚗" },
+    { id: "bills",      label: "Bills",     emoji: "🧾" },
+    { id: "shopping",   label: "Shopping",  emoji: "🛍️" },
+    { id: "health",     label: "Health",    emoji: "💊" },
+    { id: "entertainment", label: "Fun",    emoji: "🎮" },
+    { id: "rent",        label: "Rent",     emoji: "🏠" },
+    { id: "other",       label: "Other",    emoji: "📦" },
+  ],
+  income: [
+    { id: "salary",    label: "Salary",    emoji: "💼" },
+    { id: "freelance", label: "Freelance", emoji: "🧑‍💻" },
+    { id: "gift",       label: "Gift",      emoji: "🎁" },
+    { id: "interest",   label: "Interest",  emoji: "🏦" },
+    { id: "refund",      label: "Refund",   emoji: "↩️" },
+    { id: "other",        label: "Other",   emoji: "📦" },
+  ],
+};
+
+function categoryMeta(type, id) {
+  const list = CATEGORIES[type] || CATEGORIES.expense;
+  return list.find((c) => c.id === id) || { id, label: id, emoji: "📦" };
+}
+
 // ---------------- DOM refs ----------------
 const $ = (id) => document.getElementById(id);
 
@@ -73,6 +108,41 @@ const historyEmpty = $("history-empty");
 
 const logoutBtn = $("logout-btn");
 const toast = $("toast");
+const topbarTitle = $("topbar-title");
+
+// Bottom nav
+const navGoalsBtn = $("nav-goals-btn");
+const navTransactionsBtn = $("nav-transactions-btn");
+
+// Transactions view
+const viewTransactions = $("view-transactions");
+const fabAddTx = $("fab-add-tx");
+const txMonthPrev = $("tx-month-prev");
+const txMonthNext = $("tx-month-next");
+const txMonthLabel = $("tx-month-label");
+const txTotalIncome = $("tx-total-income");
+const txTotalExpense = $("tx-total-expense");
+const txTotalNet = $("tx-total-net");
+const txBreakdownList = $("tx-breakdown-list");
+const txBreakdownEmpty = $("tx-breakdown-empty");
+const txTrendChart = $("tx-trend-chart");
+const txFilterPills = $("tx-filter-pills");
+const txList = $("tx-list");
+const txListEmpty = $("tx-list-empty");
+
+// Transaction modal
+const txModal = $("tx-modal");
+const txForm = $("tx-form");
+const txModalTitle = $("tx-modal-title");
+const txTypeExpenseBtn = $("tx-type-expense");
+const txTypeIncomeBtn = $("tx-type-income");
+const txAmountInput = $("tx-amount");
+const txCategoryGrid = $("tx-category-grid");
+const txCategoryInput = $("tx-category");
+const txDateInput = $("tx-date");
+const txNoteInput = $("tx-note");
+const txFormError = $("tx-form-error");
+const txCancelBtn = $("tx-cancel-btn");
 
 // ---------------- Utilities ----------------
 function showToast(msg, ms = 2200) {
@@ -153,6 +223,7 @@ sb.auth.onAuthStateChange((_event, session) => {
     currentUser = session.user;
     authScreen.hidden = true;
     appScreen.hidden = false;
+    switchTab("goals");
     loadGoals();
   } else {
     currentUser = null;
@@ -161,6 +232,10 @@ sb.auth.onAuthStateChange((_event, session) => {
     authForm.reset();
     authSubmit.disabled = false;
     applyAuthMode();
+    activeGoalId = null;
+    txViewYear = null;
+    txViewMonth = null;
+    transactions = [];
   }
 });
 
@@ -322,10 +397,42 @@ goalForm.addEventListener("submit", async (e) => {
 
 // ---------------- Goal detail view ----------------
 function showView(view) {
+  // "list" / "detail" only apply within the Goals tab.
   viewGoals.hidden = view !== "list";
   viewGoalDetail.hidden = view !== "detail";
   fabAddGoal.hidden = view !== "list";
 }
+
+function switchTab(tab) {
+  activeTab = tab;
+
+  navGoalsBtn.classList.toggle("active", tab === "goals");
+  navTransactionsBtn.classList.toggle("active", tab === "transactions");
+
+  if (tab === "goals") {
+    topbarTitle.textContent = "Savings";
+    viewTransactions.hidden = true;
+    fabAddTx.hidden = true;
+    // restore whichever sub-view (list/detail) was active in the Goals tab
+    showView(activeGoalId ? "detail" : "list");
+  } else {
+    topbarTitle.textContent = "Transactions";
+    viewGoals.hidden = true;
+    viewGoalDetail.hidden = true;
+    fabAddGoal.hidden = true;
+    viewTransactions.hidden = false;
+    fabAddTx.hidden = false;
+    if (txViewYear === null) {
+      const now = new Date();
+      txViewYear = now.getFullYear();
+      txViewMonth = now.getMonth();
+    }
+    loadTransactionsMonth();
+  }
+}
+
+navGoalsBtn.addEventListener("click", () => switchTab("goals"));
+navTransactionsBtn.addEventListener("click", () => switchTab("transactions"));
 
 backToGoalsBtn.addEventListener("click", () => {
   activeGoalId = null;
@@ -599,6 +706,351 @@ deleteGoalBtn.addEventListener("click", async () => {
   activeGoalId = null;
   showView("list");
   await loadGoals();
+});
+
+// ============================================================
+// Transactions
+// ============================================================
+
+function monthLabel(year, month) {
+  const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  return `${monthNames[month]} ${year}`;
+}
+
+function monthRangeISO(year, month) {
+  const start = new Date(year, month, 1);
+  const end = new Date(year, month + 1, 0);
+  const pad = (n) => String(n).padStart(2, "0");
+  const toISO = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return { start: toISO(start), end: toISO(end) };
+}
+
+async function loadTransactionsMonth() {
+  const { start, end } = monthRangeISO(txViewYear, txViewMonth);
+  txMonthLabel.textContent = monthLabel(txViewYear, txViewMonth);
+
+  const { data, error } = await sb
+    .from("transactions")
+    .select("*")
+    .gte("occurred_on", start)
+    .lte("occurred_on", end)
+    .order("occurred_on", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    showToast("Couldn't load transactions.");
+    console.error(error);
+    return;
+  }
+
+  transactions = data || [];
+  renderTxSummary();
+  renderTxBreakdown();
+  renderTxList();
+  loadTrend();
+}
+
+txMonthPrev.addEventListener("click", () => {
+  txViewMonth -= 1;
+  if (txViewMonth < 0) { txViewMonth = 11; txViewYear -= 1; }
+  loadTransactionsMonth();
+});
+
+txMonthNext.addEventListener("click", () => {
+  txViewMonth += 1;
+  if (txViewMonth > 11) { txViewMonth = 0; txViewYear += 1; }
+  loadTransactionsMonth();
+});
+
+function renderTxSummary() {
+  let income = 0;
+  let expense = 0;
+  transactions.forEach((t) => {
+    if (t.type === "income") income += Number(t.amount);
+    else expense += Number(t.amount);
+  });
+  txTotalIncome.textContent = formatMoney(income);
+  txTotalExpense.textContent = formatMoney(expense);
+  txTotalNet.textContent = formatMoney(income - expense);
+}
+
+function renderTxBreakdown() {
+  const expenseTx = transactions.filter((t) => t.type === "expense");
+  txBreakdownList.innerHTML = "";
+
+  if (expenseTx.length === 0) {
+    txBreakdownEmpty.hidden = false;
+    return;
+  }
+  txBreakdownEmpty.hidden = true;
+
+  const totals = {};
+  expenseTx.forEach((t) => {
+    totals[t.category] = (totals[t.category] || 0) + Number(t.amount);
+  });
+
+  const grandTotal = Object.values(totals).reduce((a, b) => a + b, 0);
+  const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+
+  sorted.forEach(([catId, amount]) => {
+    const meta = categoryMeta("expense", catId);
+    const pct = grandTotal > 0 ? Math.round((amount / grandTotal) * 100) : 0;
+
+    const row = document.createElement("div");
+    row.className = "breakdown-row";
+    row.innerHTML = `
+      <div class="breakdown-row-top">
+        <span class="breakdown-cat">${meta.emoji} ${escapeHtml(meta.label)}</span>
+        <span class="breakdown-amount">${formatMoney(amount)}</span>
+      </div>
+      <div class="breakdown-track"><div class="breakdown-fill" style="width:${pct}%"></div></div>
+    `;
+    txBreakdownList.appendChild(row);
+  });
+}
+
+function renderTxList() {
+  txList.innerHTML = "";
+
+  const filtered = txTypeFilter === "all"
+    ? transactions
+    : transactions.filter((t) => t.type === txTypeFilter);
+
+  if (filtered.length === 0) {
+    txListEmpty.hidden = false;
+    return;
+  }
+  txListEmpty.hidden = true;
+
+  // group by date, preserving the already-descending order
+  const groups = [];
+  let currentGroup = null;
+  filtered.forEach((t) => {
+    if (!currentGroup || currentGroup.date !== t.occurred_on) {
+      currentGroup = { date: t.occurred_on, items: [] };
+      groups.push(currentGroup);
+    }
+    currentGroup.items.push(t);
+  });
+
+  groups.forEach((group) => {
+    const groupEl = document.createElement("div");
+    groupEl.className = "tx-date-group";
+
+    const heading = document.createElement("p");
+    heading.className = "tx-date-heading";
+    heading.textContent = formatDateLong(group.date);
+    groupEl.appendChild(heading);
+
+    group.items.forEach((t) => {
+      const meta = categoryMeta(t.type, t.category);
+      const row = document.createElement("div");
+      row.className = "tx-row";
+      row.innerHTML = `
+        <span class="tx-row-icon">${meta.emoji}</span>
+        <div class="tx-row-body">
+          <p class="tx-row-cat">${escapeHtml(meta.label)}</p>
+          <p class="tx-row-note">${t.note ? escapeHtml(t.note) : (t.type === "income" ? "Income" : "Expense")}</p>
+        </div>
+        <span class="tx-row-amount ${t.type}">${t.type === "income" ? "+" : "−"}${formatMoney(t.amount)}</span>
+        <button class="tx-row-del" aria-label="Delete transaction" data-id="${t.id}">✕</button>
+      `;
+      row.querySelector(".tx-row-del").addEventListener("click", (e) => {
+        e.stopPropagation();
+        deleteTransaction(t.id);
+      });
+      row.addEventListener("click", () => openTxModal(t));
+      groupEl.appendChild(row);
+    });
+
+    txList.appendChild(groupEl);
+  });
+}
+
+txFilterPills.addEventListener("click", (e) => {
+  const btn = e.target.closest(".pill");
+  if (!btn) return;
+  txTypeFilter = btn.dataset.filter;
+  [...txFilterPills.children].forEach((p) => p.classList.toggle("active", p === btn));
+  renderTxList();
+});
+
+async function deleteTransaction(id) {
+  const { error } = await sb.from("transactions").delete().eq("id", id);
+  if (error) {
+    showToast("Couldn't delete transaction.");
+    console.error(error);
+    return;
+  }
+  showToast("Transaction removed.");
+  await loadTransactionsMonth();
+}
+
+// ---------------- 6-month trend ----------------
+async function loadTrend() {
+  const months = [];
+  for (let i = 5; i >= 0; i--) {
+    let y = txViewYear, m = txViewMonth - i;
+    while (m < 0) { m += 12; y -= 1; }
+    months.push({ year: y, month: m });
+  }
+
+  const first = monthRangeISO(months[0].year, months[0].month).start;
+  const last = monthRangeISO(months[5].year, months[5].month).end;
+
+  const { data, error } = await sb
+    .from("transactions")
+    .select("type, amount, occurred_on")
+    .gte("occurred_on", first)
+    .lte("occurred_on", last);
+
+  if (error) {
+    console.error(error);
+    return;
+  }
+
+  const buckets = months.map((m) => ({ ...m, income: 0, expense: 0 }));
+
+  (data || []).forEach((t) => {
+    const d = new Date(t.occurred_on + "T00:00:00");
+    const bucket = buckets.find((b) => b.year === d.getFullYear() && b.month === d.getMonth());
+    if (!bucket) return;
+    if (t.type === "income") bucket.income += Number(t.amount);
+    else bucket.expense += Number(t.amount);
+  });
+
+  trendCache = buckets;
+  renderTrend();
+}
+
+function renderTrend() {
+  txTrendChart.innerHTML = "";
+  if (trendCache.length === 0) return;
+
+  const monthAbbr = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const maxVal = Math.max(1, ...trendCache.map((b) => Math.max(b.income, b.expense)));
+
+  trendCache.forEach((b) => {
+    const incomeH = Math.round((b.income / maxVal) * 100);
+    const expenseH = Math.round((b.expense / maxVal) * 100);
+
+    const col = document.createElement("div");
+    col.className = "trend-col";
+    col.innerHTML = `
+      <div class="trend-bars">
+        <div class="trend-bar income" style="height:${incomeH}%" title="Income: ${formatMoney(b.income)}"></div>
+        <div class="trend-bar expense" style="height:${expenseH}%" title="Expenses: ${formatMoney(b.expense)}"></div>
+      </div>
+      <span class="trend-label">${monthAbbr[b.month]}</span>
+    `;
+    txTrendChart.appendChild(col);
+  });
+}
+
+// ---------------- Transaction add/edit modal ----------------
+function renderCategoryGrid() {
+  const list = CATEGORIES[txFormType];
+  txCategoryGrid.innerHTML = "";
+  list.forEach((cat) => {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "category-chip" + (cat.id === txCategoryInput.value ? " active" : "");
+    chip.dataset.cat = cat.id;
+    chip.innerHTML = `<span class="category-chip-emoji">${cat.emoji}</span><span>${escapeHtml(cat.label)}</span>`;
+    chip.addEventListener("click", () => {
+      txCategoryInput.value = cat.id;
+      [...txCategoryGrid.children].forEach((c) => c.classList.toggle("active", c === chip));
+    });
+    txCategoryGrid.appendChild(chip);
+  });
+}
+
+function setTxFormType(type) {
+  txFormType = type;
+  txTypeExpenseBtn.classList.toggle("active", type === "expense");
+  txTypeIncomeBtn.classList.toggle("active", type === "income");
+  // default to "other" when switching types unless editing keeps a valid category
+  const list = CATEGORIES[type];
+  if (!list.some((c) => c.id === txCategoryInput.value)) {
+    txCategoryInput.value = list[list.length - 1].id; // "other"
+  }
+  renderCategoryGrid();
+}
+
+txTypeExpenseBtn.addEventListener("click", () => setTxFormType("expense"));
+txTypeIncomeBtn.addEventListener("click", () => setTxFormType("income"));
+
+function openTxModal(tx = null) {
+  editingTxId = tx ? tx.id : null;
+  txModalTitle.textContent = tx ? "Edit transaction" : "New transaction";
+  txAmountInput.value = tx ? tx.amount : "";
+  txDateInput.value = tx ? tx.occurred_on : todayISO();
+  txNoteInput.value = tx ? (tx.note || "") : "";
+  txCategoryInput.value = tx ? tx.category : "other";
+  txFormError.hidden = true;
+  setTxFormType(tx ? tx.type : "expense");
+  txModal.hidden = false;
+}
+
+function closeTxModal() {
+  txModal.hidden = true;
+  txForm.reset();
+  editingTxId = null;
+}
+
+fabAddTx.addEventListener("click", () => openTxModal());
+txCancelBtn.addEventListener("click", closeTxModal);
+txModal.addEventListener("click", (e) => { if (e.target === txModal) closeTxModal(); });
+
+txForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  txFormError.hidden = true;
+
+  const amount = parseFloat(txAmountInput.value);
+  const occurred_on = txDateInput.value || todayISO();
+  const note = txNoteInput.value.trim() || null;
+  const category = txCategoryInput.value || "other";
+  const type = txFormType;
+
+  if (!amount || amount <= 0) {
+    txFormError.textContent = "Please enter an amount greater than 0.";
+    txFormError.hidden = false;
+    return;
+  }
+
+  const saveBtn = $("tx-save-btn");
+  saveBtn.disabled = true;
+  saveBtn.textContent = "Saving…";
+
+  try {
+    if (editingTxId) {
+      const { error } = await sb
+        .from("transactions")
+        .update({ type, amount, category, note, occurred_on })
+        .eq("id", editingTxId);
+      if (error) throw error;
+      showToast("Transaction updated.");
+    } else {
+      const { error } = await sb
+        .from("transactions")
+        .insert({ type, amount, category, note, occurred_on, user_id: currentUser.id });
+      if (error) throw error;
+      showToast("Transaction added.");
+    }
+    closeTxModal();
+
+    // jump the visible month to match the transaction's date so the user sees it
+    const d = new Date(occurred_on + "T00:00:00");
+    txViewYear = d.getFullYear();
+    txViewMonth = d.getMonth();
+    await loadTransactionsMonth();
+  } catch (err) {
+    txFormError.textContent = err.message || "Couldn't save transaction.";
+    txFormError.hidden = false;
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.textContent = "Save";
+  }
 });
 
 // ---------------- Init ----------------
